@@ -183,9 +183,18 @@ const Chip8 = struct {
             0x7000 => self.v[x] +%= kk,
             0x8000 => switch (n) {
                 0x0 => self.v[x] = self.v[y],
-                0x1 => self.v[x] |= self.v[y],
-                0x2 => self.v[x] &= self.v[y],
-                0x3 => self.v[x] ^= self.v[y],
+                0x1 => {
+                    self.v[x] |= self.v[y];
+                    self.v[0xF] = 0;
+                },
+                0x2 => {
+                    self.v[x] &= self.v[y];
+                    self.v[0xF] = 0;
+                },
+                0x3 => {
+                    self.v[x] ^= self.v[y];
+                    self.v[0xF] = 0;
+                },
                 0x4 => {
                     const sum = @as(u16, self.v[x]) + @as(u16, self.v[y]);
                     self.v[0xF] = if (sum > 0xFF) 1 else 0;
@@ -227,13 +236,15 @@ const Chip8 = struct {
 
                 var row: usize = 0;
                 while (row < n) : (row += 1) {
+                    const py = vy + row;
+                    if (py >= display_h) break;
                     const sprite = self.memory[self.i + row];
                     var col: usize = 0;
                     while (col < 8) : (col += 1) {
                         const bit = (sprite >> @as(u3, @intCast(7 - col))) & 0x1;
                         if (bit == 0) continue;
-                        const px = (vx + col) % display_w;
-                        const py = (vy + row) % display_h;
+                        const px = vx + col;
+                        if (px >= display_w) break;
                         const idx = py * display_w + px;
                         if (self.display[idx] == 1) self.v[0xF] = 1;
                         self.display[idx] ^= 1;
