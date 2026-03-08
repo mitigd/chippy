@@ -848,14 +848,15 @@ pub fn main() !void {
         }
 
         if (show_about) {
-            if (c.ngui_message_box(
+            if (c.ngui_message_box_ex(
                 ngui,
                 "about",
                 "ABOUT CHIPPY",
-                "CHIP-8 + SDL3 + nesticle_gui debug build",
+                "CHIP-8 + SDL3 +\nnesticle_gui debug build \n\nby: mitigd",
                 c.NGUI_MSGBOX_ONE_BUTTON,
                 "OK",
                 null,
+                c.NGUI_TEXT_ALIGN_CENTER,
             ) != 0) show_about = false;
         }
 
