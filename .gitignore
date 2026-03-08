@@ -15,3 +15,5 @@ Thumbs.db
 # Nested project caches (e.g. deps)
 **/.zig-cache
 **/.zig-cache/
+
+scripts/build.ps1
