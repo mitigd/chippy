@@ -600,7 +600,7 @@ pub fn main() !void {
         const ui_h: c_int = @max(@as(c_int, 240), @as(c_int, @intFromFloat(@as(f32, @floatFromInt(out_h)) / scale)));
 
         const margin: c_int = 10;
-        const top: c_int = 36;
+        const top: c_int = 22;
         const avail_w: c_int = ui_w - (margin * 3);
         // Right side: Registers and Stack/Keys side-by-side (takes most space)
         // Left side: Display on top, small Graph below
