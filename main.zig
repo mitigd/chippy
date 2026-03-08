@@ -515,6 +515,7 @@ pub fn main() !void {
     var step_10 = false;
     var show_about = false;
     var open_browser = false;
+    var tiled_on_startup = false;
     var rom_loaded = false;
     var cycles_per_frame: f32 = 10;
     var timer_accum: f64 = 0;
@@ -811,7 +812,7 @@ pub fn main() !void {
                             const shown = elideTail(status_text[0..status_len], 46);
                             const s = std.fmt.bufPrintZ(&status_z, "Status: {s}", .{shown}) catch "status";
                             c.mdgui_separator(mdgui, 8, 4, 0);
-                            c.mdgui_label(mdgui, s.ptr, 8, 2);
+                            c.mdgui_label_wrapped(mdgui, s.ptr, 8, 2, -16);
                         }
 
                         c.mdgui_end_window(mdgui);
@@ -869,6 +870,23 @@ pub fn main() !void {
                     }
                 },
             }
+        }
+
+        if (!tiled_on_startup) {
+            c.mdgui_set_window_tile_side(mdgui, "CHIP-8 DISPLAY", c.MDGUI_TILE_SIDE_WEST);
+            c.mdgui_set_window_tile_side(mdgui, "DT/ST TIMERS", c.MDGUI_TILE_SIDE_WEST);
+            c.mdgui_set_window_tile_side(mdgui, "REGISTERS", c.MDGUI_TILE_SIDE_EAST);
+            c.mdgui_set_window_tile_side(mdgui, "STACK", c.MDGUI_TILE_SIDE_EAST);
+            c.mdgui_set_window_tile_side(mdgui, "KEYS", c.MDGUI_TILE_SIDE_EAST);
+
+            c.mdgui_set_window_tile_weight(mdgui, "CHIP-8 DISPLAY", 5);
+            c.mdgui_set_window_tile_weight(mdgui, "DT/ST TIMERS", 2);
+            c.mdgui_set_window_tile_weight(mdgui, "REGISTERS", 2);
+            c.mdgui_set_window_tile_weight(mdgui, "STACK", 1);
+            c.mdgui_set_window_tile_weight(mdgui, "KEYS", 1);
+
+            c.mdgui_tile_windows(mdgui);
+            tiled_on_startup = true;
         }
 
         if (open_browser) {
