@@ -1,0 +1,17 @@
+# Zig build artifacts
+.zig-cache
+.zig-cache/
+zig-out/
+
+# Common transient files
+*.pdb
+*.obj
+*.ilk
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+
+# Nested project caches (e.g. deps)
+**/.zig-cache
+**/.zig-cache/

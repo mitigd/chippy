@@ -1,0 +1,3 @@
+[submodule "deps/mdgui"]
+	path = deps/mdgui
+	url = https://github.com/mitigd/mdgui
