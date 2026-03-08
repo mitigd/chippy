@@ -1,17 +1,19 @@
 .{
-    .name = .nesticle_gui_demo,
+    .name = .chippy,
     .version = "0.1.0",
-    .fingerprint = 0x4c55f907011436f2,
+    .fingerprint = 0x82d9806c5cc7d38b,
     .minimum_zig_version = "0.15.2",
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "main.zig",
-        "ngui.h",
-        "ngui_sdl2.h",
-        "ngui_sdl3.h",
-        "ngui_assets.h",
-        "ngui_c.cpp",
+        "deps/mdgui/include/mdgui_c.h",
+        "deps/mdgui/include/mdgui_backends.h",
+        "deps/mdgui/include/mdgui_primitives.h",
+        "deps/mdgui/include/mdgui_font8x8.h",
+        "deps/mdgui/src/mdgui_c.cpp",
+        "deps/mdgui/src/mdgui_glue.cpp",
+        "deps/mdgui/src/mdgui_backend_sdl.cpp",
     },
     .dependencies = .{
         .sdl = .{

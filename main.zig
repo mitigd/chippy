@@ -2,7 +2,7 @@ const std = @import("std");
 
 const c = @cImport({
     @cInclude("SDL3/SDL.h");
-    @cInclude("ngui_c.h");
+    @cInclude("mdgui_c.h");
 });
 
 const display_w = 64;
@@ -365,8 +365,15 @@ fn renderChip8(renderer: ?*c.SDL_Renderer, emu: *const Chip8, x: c_int, y: c_int
     _ = c.SDL_SetRenderDrawColor(renderer, 0x03, 0x05, 0x08, 0xFF);
     _ = c.SDL_RenderFillRect(renderer, &bg);
 
-    const px_w = if (w > display_w) @divTrunc(w, display_w) else 1;
-    const px_h = if (h > display_h) @divTrunc(h, display_h) else 1;
+    const scale_x = @as(f32, @floatFromInt(w)) / @as(f32, @floatFromInt(display_w));
+    const scale_y = @as(f32, @floatFromInt(h)) / @as(f32, @floatFromInt(display_h));
+    const cell_size = @min(scale_x, scale_y);
+    if (cell_size <= 0.0) return;
+
+    const draw_w: f32 = @as(f32, @floatFromInt(display_w)) * cell_size;
+    const draw_h: f32 = @as(f32, @floatFromInt(display_h)) * cell_size;
+    const ox: f32 = @as(f32, @floatFromInt(x)) + (@as(f32, @floatFromInt(w)) - draw_w) * 0.5;
+    const oy: f32 = @as(f32, @floatFromInt(y)) + (@as(f32, @floatFromInt(h)) - draw_h) * 0.5;
 
     _ = c.SDL_SetRenderDrawColor(renderer, 0x5A, 0xFF, 0x88, 0xFF);
     var py: usize = 0;
@@ -375,10 +382,10 @@ fn renderChip8(renderer: ?*c.SDL_Renderer, emu: *const Chip8, x: c_int, y: c_int
         while (px < display_w) : (px += 1) {
             if (emu.display[py * display_w + px] == 0) continue;
             var cell = c.SDL_FRect{
-                .x = @floatFromInt(x + @as(c_int, @intCast(px * @as(usize, @intCast(px_w))))),
-                .y = @floatFromInt(y + @as(c_int, @intCast(py * @as(usize, @intCast(px_h))))),
-                .w = @floatFromInt(px_w),
-                .h = @floatFromInt(px_h),
+                .x = ox + @as(f32, @floatFromInt(px)) * cell_size,
+                .y = oy + @as(f32, @floatFromInt(py)) * cell_size,
+                .w = cell_size,
+                .h = cell_size,
             };
             _ = c.SDL_RenderFillRect(renderer, &cell);
         }
@@ -474,8 +481,9 @@ pub fn main() !void {
     defer c.SDL_DestroyRenderer(renderer);
     _ = c.SDL_SetRenderScale(renderer, scale, scale);
 
-    const ngui = c.ngui_create(renderer) orelse return error.NguiInitFailed;
-    defer c.ngui_destroy(ngui);
+    const mdgui = c.mdgui_create(renderer) orelse return error.MdguiInitFailed;
+    defer c.mdgui_destroy(mdgui);
+    c.mdgui_set_theme(c.MDGUI_THEME_AMBER);
 
     var audio_spec = c.SDL_AudioSpec{
         .format = c.SDL_AUDIO_S16,
@@ -493,7 +501,7 @@ pub fn main() !void {
     var emu = Chip8{};
     emu.reset();
 
-    var input = c.NGUI_Input{
+    var input = c.MDGUI_Input{
         .mouse_x = 0,
         .mouse_y = 0,
         .mouse_down = 0,
@@ -615,21 +623,21 @@ pub fn main() !void {
         _ = c.SDL_SetRenderDrawColor(renderer, 0x07, 0x0A, 0x10, 0xFF);
         _ = c.SDL_RenderClear(renderer);
 
-        c.ngui_begin_frame(ngui, &input);
+        c.mdgui_begin_frame(mdgui, &input);
 
-        c.ngui_begin_main_menu_bar(ngui);
-        if (c.ngui_begin_main_menu(ngui, "FILE") != 0) {
-            if (c.ngui_main_menu_item(ngui, "OPEN ROM") != 0) open_browser = true;
-            if (c.ngui_main_menu_item(ngui, "RESET") != 0 and rom_loaded) {
+        c.mdgui_begin_main_menu_bar(mdgui);
+        if (c.mdgui_begin_main_menu(mdgui, "FILE") != 0) {
+            if (c.mdgui_main_menu_item(mdgui, "OPEN ROM") != 0) open_browser = true;
+            if (c.mdgui_main_menu_item(mdgui, "RESET") != 0 and rom_loaded) {
                 emu.loadRom(loaded_rom[0..loaded_rom_len]) catch |err| {
                     status_len = blk: {
                         const s = std.fmt.bufPrint(&status_text, "Reset failed: {s}", .{@errorName(err)}) catch break :blk 0;
                         break :blk s.len;
                     };
                     rom_loaded = false;
-                    c.ngui_end_main_menu(ngui);
-                    c.ngui_end_main_menu_bar(ngui);
-                    c.ngui_end_frame(ngui);
+                    c.mdgui_end_main_menu(mdgui);
+                    c.mdgui_end_main_menu_bar(mdgui);
+                    c.mdgui_end_frame(mdgui);
                     _ = c.SDL_RenderPresent(renderer);
                     continue;
                 };
@@ -640,26 +648,26 @@ pub fn main() !void {
                     break :blk s.len;
                 };
             }
-            if (c.ngui_main_menu_item(ngui, "EXIT") != 0) running = false;
-            c.ngui_end_main_menu(ngui);
+            if (c.mdgui_main_menu_item(mdgui, "EXIT") != 0) running = false;
+            c.mdgui_end_main_menu(mdgui);
         }
-        if (c.ngui_begin_main_menu(ngui, "EMULATION") != 0) {
-            if (c.ngui_main_menu_item(ngui, if (paused) "RUN" else "PAUSE") != 0) paused = !paused;
-            if (c.ngui_main_menu_item(ngui, "STEP") != 0) {
+        if (c.mdgui_begin_main_menu(mdgui, "EMULATION") != 0) {
+            if (c.mdgui_main_menu_item(mdgui, if (paused) "RUN" else "PAUSE") != 0) paused = !paused;
+            if (c.mdgui_main_menu_item(mdgui, "STEP") != 0) {
                 paused = true;
                 step_once = true;
             }
-            if (c.ngui_main_menu_item(ngui, "STEP X10") != 0) {
+            if (c.mdgui_main_menu_item(mdgui, "STEP X10") != 0) {
                 paused = true;
                 step_10 = true;
             }
-            c.ngui_end_main_menu(ngui);
+            c.mdgui_end_main_menu(mdgui);
         }
-        if (c.ngui_begin_main_menu(ngui, "HELP") != 0) {
-            if (c.ngui_main_menu_item(ngui, "ABOUT") != 0) show_about = true;
-            c.ngui_end_main_menu(ngui);
+        if (c.mdgui_begin_main_menu(mdgui, "HELP") != 0) {
+            if (c.mdgui_main_menu_item(mdgui, "ABOUT") != 0) show_about = true;
+            c.mdgui_end_main_menu(mdgui);
         }
-        c.ngui_end_main_menu_bar(ngui);
+        c.mdgui_end_main_menu_bar(mdgui);
 
         var out_w: c_int = 0;
         var out_h: c_int = 0;
@@ -715,13 +723,13 @@ pub fn main() !void {
         const DrawPanel = enum { display, graph, control, registers, stack, keys, disasm };
         var panels: [7]DrawPanel = .{ .display, .graph, .control, .registers, .stack, .keys, .disasm };
         var panel_z: [7]c_int = .{
-            c.ngui_get_window_z(ngui, "CHIP-8 DISPLAY"),
-            c.ngui_get_window_z(ngui, "DT/ST TIMERS"),
-            c.ngui_get_window_z(ngui, "CONTROL"),
-            c.ngui_get_window_z(ngui, "REGISTERS"),
-            c.ngui_get_window_z(ngui, "STACK"),
-            c.ngui_get_window_z(ngui, "KEYS"),
-            c.ngui_get_window_z(ngui, "DISASM (PC WINDOW)"),
+            c.mdgui_get_window_z(mdgui, "CHIP-8 DISPLAY"),
+            c.mdgui_get_window_z(mdgui, "DT/ST TIMERS"),
+            c.mdgui_get_window_z(mdgui, "CONTROL"),
+            c.mdgui_get_window_z(mdgui, "REGISTERS"),
+            c.mdgui_get_window_z(mdgui, "STACK"),
+            c.mdgui_get_window_z(mdgui, "KEYS"),
+            c.mdgui_get_window_z(mdgui, "DISASM (PC WINDOW)"),
         };
 
         var pi: usize = 0;
@@ -746,9 +754,9 @@ pub fn main() !void {
                     var vy: c_int = 0;
                     var vw: c_int = 0;
                     var vh: c_int = 0;
-                    if (c.ngui_begin_render_window(ngui, "CHIP-8 DISPLAY", margin, top, left_w, display_win_h, 1, &vx, &vy, &vw, &vh) != 0) {
+                    if (c.mdgui_begin_render_window(mdgui, "CHIP-8 DISPLAY", margin, top, left_w, display_win_h, 1, &vx, &vy, &vw, &vh) != 0) {
                         renderChip8(renderer, &emu, vx, vy, vw, vh);
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
                 .graph => {
@@ -756,96 +764,96 @@ pub fn main() !void {
                     var gy: c_int = 0;
                     var gw: c_int = 0;
                     var gh: c_int = 0;
-                    if (c.ngui_begin_render_window(ngui, "DT/ST TIMERS", margin, top + display_win_h + margin, left_w, graph_win_h, 0, &gx, &gy, &gw, &gh) != 0) {
+                    if (c.mdgui_begin_render_window(mdgui, "DT/ST TIMERS", margin, top + display_win_h + margin, left_w, graph_win_h, 0, &gx, &gy, &gw, &gh) != 0) {
                         renderHistoryGraph(renderer, &history, gx, gy, gw, gh);
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
                 .control => {
-                    if (c.ngui_begin_window(ngui, "CONTROL", right_x, top, right_w, control_h) != 0) {
+                    if (c.mdgui_begin_window(mdgui, "CONTROL", right_x, top, right_w, control_h) != 0) {
                         var running_toggle = !paused;
-                        if (c.ngui_checkbox(ngui, "Running", &running_toggle, 8, 0) != 0) paused = !running_toggle;
+                        if (c.mdgui_checkbox(mdgui, "Running", &running_toggle, 8, 0) != 0) paused = !running_toggle;
 
-                        if (c.ngui_button(ngui, "Step", 8, 2, 70, 16) != 0) {
+                        if (c.mdgui_button(mdgui, "Step", 8, 2, 70, 16) != 0) {
                             paused = true;
                             step_once = true;
                         }
-                        if (c.ngui_button(ngui, "Step x10", 86, 2, 70, 16) != 0) {
+                        if (c.mdgui_button(mdgui, "Step x10", 86, 2, 70, 16) != 0) {
                             paused = true;
                             step_10 = true;
                         }
 
-                        c.ngui_spacer(ngui, 20);
+                        c.mdgui_spacer(mdgui, 20);
 
-                        c.ngui_label(ngui, "Cycles/frame", 8, 2);
-                        _ = c.ngui_slider(ngui, null, &cycles_per_frame, 1, 80, 8, 2, -16);
+                        c.mdgui_label(mdgui, "Cycles/frame", 8, 2);
+                        _ = c.mdgui_slider(mdgui, null, &cycles_per_frame, 1, 80, 8, 2, -16);
 
                         var line: [96]u8 = undefined;
                         const st = std.fmt.bufPrintZ(&line, "PC={X:0>4} I={X:0>4} SP={d}", .{ emu.pc, emu.i, emu.sp }) catch "state";
-                        c.ngui_label(ngui, st.ptr, 8, 2);
+                        c.mdgui_label(mdgui, st.ptr, 8, 2);
 
                         var opbuf: [96]u8 = undefined;
                         var disbuf: [96]u8 = undefined;
                         const op = std.fmt.bufPrintZ(&opbuf, "OP={X:0>4}", .{emu.last_opcode}) catch "op";
-                        c.ngui_label(ngui, op.ptr, 8, 2);
+                        c.mdgui_label(mdgui, op.ptr, 8, 2);
 
                         const dis = decodeOpcode(emu.last_opcode, disbuf[0..]);
                         var disz: [100]u8 = undefined;
                         const dis_line = std.fmt.bufPrintZ(&disz, "{s}", .{dis}) catch "decode";
-                        c.ngui_label(ngui, dis_line.ptr, 8, 2);
+                        c.mdgui_label(mdgui, dis_line.ptr, 8, 2);
 
                         var timer_buf: [96]u8 = undefined;
                         const t = std.fmt.bufPrintZ(&timer_buf, "DT={d} ST={d}", .{ emu.delay_timer, emu.sound_timer }) catch "timers";
-                        c.ngui_label(ngui, t.ptr, 8, 2);
+                        c.mdgui_label(mdgui, t.ptr, 8, 2);
 
                         if (status_len > 0) {
                             var status_z: [260]u8 = undefined;
                             const shown = elideTail(status_text[0..status_len], 46);
                             const s = std.fmt.bufPrintZ(&status_z, "Status: {s}", .{shown}) catch "status";
-                            c.ngui_separator(ngui, 8, 4, 0);
-                            c.ngui_label(ngui, s.ptr, 8, 2);
+                            c.mdgui_separator(mdgui, 8, 4, 0);
+                            c.mdgui_label(mdgui, s.ptr, 8, 2);
                         }
 
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
 
                 .registers => {
-                    if (c.ngui_begin_window(ngui, "REGISTERS", right_x, top + control_h + margin, reg_w, mid_h) != 0) {
+                    if (c.mdgui_begin_window(mdgui, "REGISTERS", right_x, top + control_h + margin, reg_w, mid_h) != 0) {
                         var i: usize = 0;
                         while (i < 16) : (i += 1) {
                             var line: [64]u8 = undefined;
                             const txt = std.fmt.bufPrintZ(&line, "V{X}: {X:0>2} ({d})", .{ i, emu.v[i], emu.v[i] }) catch "reg";
-                            c.ngui_label(ngui, txt.ptr, 8, 3);
+                            c.mdgui_label(mdgui, txt.ptr, 8, 3);
                         }
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
                 .stack => {
-                    if (c.ngui_begin_window(ngui, "STACK", right_x + reg_w + split_gap, top + control_h + margin, stack_w, mid_h) != 0) {
+                    if (c.mdgui_begin_window(mdgui, "STACK", right_x + reg_w + split_gap, top + control_h + margin, stack_w, mid_h) != 0) {
                         var si: usize = 0;
                         while (si < emu.stack.len) : (si += 1) {
                             var line: [64]u8 = undefined;
                             const marker: u8 = if (si + 1 == emu.sp) '*' else ' ';
                             const txt = std.fmt.bufPrintZ(&line, "{c} {d: >2}: {X:0>4}", .{ marker, si, emu.stack[si] }) catch "stack";
-                            c.ngui_label(ngui, txt.ptr, 8, 2);
+                            c.mdgui_label(mdgui, txt.ptr, 8, 2);
                         }
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
                 .keys => {
-                    if (c.ngui_begin_window(ngui, "KEYS", right_x + reg_w + split_gap + stack_w + split_gap, top + control_h + margin, keys_w, mid_h) != 0) {
+                    if (c.mdgui_begin_window(mdgui, "KEYS", right_x + reg_w + split_gap + stack_w + split_gap, top + control_h + margin, keys_w, mid_h) != 0) {
                         var k: usize = 0;
                         while (k < 16) : (k += 1) {
                             var key_line: [48]u8 = undefined;
                             const txt = std.fmt.bufPrintZ(&key_line, "{X}: {s}", .{ k, if (emu.keypad[k]) "down" else "up" }) catch "key";
-                            c.ngui_label(ngui, txt.ptr, 8, 1);
+                            c.mdgui_label(mdgui, txt.ptr, 8, 1);
                         }
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
                 .disasm => {
-                    if (c.ngui_begin_window(ngui, "DISASM (PC WINDOW)", right_x, top + control_h + margin + mid_h + margin, right_w, disasm_h) != 0) {
+                    if (c.mdgui_begin_window(mdgui, "DISASM (PC WINDOW)", right_x, top + control_h + margin + mid_h + margin, right_w, disasm_h) != 0) {
                         var row: usize = 0;
                         while (row < 14) : (row += 1) {
                             const addr = emu.pc + @as(u16, @intCast(row * 2));
@@ -855,19 +863,19 @@ pub fn main() !void {
                             const dis = decodeOpcode(op, dbuf[0..]);
                             var line: [128]u8 = undefined;
                             const txt = std.fmt.bufPrintZ(&line, "{X:0>3}:{X:0>4} {s}", .{ addr, op, dis }) catch "dis";
-                            c.ngui_label(ngui, txt.ptr, 8, 1);
+                            c.mdgui_label(mdgui, txt.ptr, 8, 1);
                         }
-                        c.ngui_end_window(ngui);
+                        c.mdgui_end_window(mdgui);
                     }
                 },
             }
         }
 
         if (open_browser) {
-            c.ngui_open_file_browser(ngui);
+            c.mdgui_open_file_browser(mdgui);
             open_browser = false;
         }
-        if (c.ngui_show_file_browser(ngui)) |picked| {
+        if (c.mdgui_show_file_browser(mdgui)) |picked| {
             open_browser = false;
             const path = std.mem.span(picked);
             const file = std.fs.cwd().readFileAlloc(std.heap.page_allocator, path, 1024 * 1024) catch |err| {
@@ -877,7 +885,7 @@ pub fn main() !void {
                 };
                 rom_loaded = false;
                 loaded_rom_len = 0;
-                c.ngui_end_frame(ngui);
+                c.mdgui_end_frame(mdgui);
                 _ = c.SDL_RenderPresent(renderer);
                 continue;
             };
@@ -890,7 +898,7 @@ pub fn main() !void {
                 };
                 rom_loaded = false;
                 loaded_rom_len = 0;
-                c.ngui_end_frame(ngui);
+                c.mdgui_end_frame(mdgui);
                 _ = c.SDL_RenderPresent(renderer);
                 continue;
             };
@@ -907,19 +915,19 @@ pub fn main() !void {
         }
 
         if (show_about) {
-            if (c.ngui_message_box_ex(
-                ngui,
+            if (c.mdgui_message_box_ex(
+                mdgui,
                 "about",
                 "ABOUT CHIPPY",
-                "CHIP-8 + SDL3 +\nnesticle_gui debug build \n\nby: mitigd",
-                c.NGUI_MSGBOX_ONE_BUTTON,
+                "CHIP-8 + SDL3 +\nmdgui debug build \n\nby: mitigd",
+                c.MDGUI_MSGBOX_ONE_BUTTON,
                 "OK",
                 null,
-                c.NGUI_TEXT_ALIGN_CENTER,
+                c.MDGUI_TEXT_ALIGN_CENTER,
             ) != 0) show_about = false;
         }
 
-        c.ngui_end_frame(ngui);
+        c.mdgui_end_frame(mdgui);
         _ = c.SDL_RenderPresent(renderer);
     }
 }

@@ -23,12 +23,12 @@ pub fn build(b: *std.Build) void {
     exe.linkLibC();
     exe.linkLibCpp();
 
-    exe.root_module.addIncludePath(b.path("deps/nesticle_gui"));
+    exe.root_module.addIncludePath(b.path("deps/mdgui/include"));
     exe.root_module.addCSourceFiles(.{
         .files = &.{
-            "deps/nesticle_gui/ngui_c.cpp",
-            "deps/nesticle_gui/ngui_core.cpp",
-            "deps/nesticle_gui/ngui_glue.cpp",
+            "deps/mdgui/src/mdgui_c.cpp",
+            "deps/mdgui/src/mdgui_glue.cpp",
+            "deps/mdgui/src/mdgui_backend_sdl.cpp",
         },
         .flags = &.{ "-std=c++17", "-fpermissive" },
     });
