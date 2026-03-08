@@ -8,6 +8,8 @@ const c = @cImport({
 const display_w = 64;
 const display_h = 32;
 const scale = 2.0;
+const audio_sample_rate = 48_000;
+const audio_chunk_samples = 800; // ~1/60 sec at 48kHz
 
 // CHIP-8 quirk toggles for compatibility/accuracy tuning.
 // These defaults match original CHIP-8 behavior.
@@ -442,8 +444,27 @@ fn elideTail(text: []const u8, max_len: usize) []const u8 {
     return text[text.len - (max_len - 3) ..];
 }
 
+fn queueBeepChunk(stream: ?*c.SDL_AudioStream, phase: *f32, active: bool) void {
+    if (stream == null) return;
+    var samples: [audio_chunk_samples]i16 = undefined;
+    if (active) {
+        const hz: f32 = 440.0;
+        const step = hz / @as(f32, @floatFromInt(audio_sample_rate));
+        const amp: i16 = 6000;
+        var i: usize = 0;
+        while (i < samples.len) : (i += 1) {
+            samples[i] = if (phase.* < 0.5) amp else -amp;
+            phase.* += step;
+            if (phase.* >= 1.0) phase.* -= 1.0;
+        }
+    } else {
+        @memset(samples[0..], 0);
+    }
+    _ = c.SDL_PutAudioStreamData(stream, &samples, @as(c_int, @intCast(@sizeOf(@TypeOf(samples)))));
+}
+
 pub fn main() !void {
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) == false) return error.SDLInitFailed;
+    if (c.SDL_Init(c.SDL_INIT_VIDEO | c.SDL_INIT_AUDIO) == false) return error.SDLInitFailed;
     defer c.SDL_Quit();
 
     const window = c.SDL_CreateWindow("chippy", 1400, 900, 0) orelse return error.SDLWindowFailed;
@@ -455,6 +476,19 @@ pub fn main() !void {
 
     const ngui = c.ngui_create(renderer) orelse return error.NguiInitFailed;
     defer c.ngui_destroy(ngui);
+
+    var audio_spec = c.SDL_AudioSpec{
+        .format = c.SDL_AUDIO_S16,
+        .channels = 1,
+        .freq = audio_sample_rate,
+    };
+    const audio_stream = c.SDL_OpenAudioDeviceStream(c.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_spec, null, null);
+    defer if (audio_stream != null) c.SDL_DestroyAudioStream(audio_stream);
+    if (audio_stream != null) {
+        _ = c.SDL_ResumeAudioStreamDevice(audio_stream);
+    }
+    var beep_phase: f32 = 0.0;
+    var was_beeping = false;
 
     var emu = Chip8{};
     emu.reset();
@@ -562,6 +596,20 @@ pub fn main() !void {
                 emu.tickTimers();
                 timer_accum -= 1.0 / 60.0;
             }
+        }
+
+        if (audio_stream != null) {
+            const beep_active = emu.sound_timer > 0 and rom_loaded and !emu.halted;
+            const queued = c.SDL_GetAudioStreamQueued(audio_stream);
+            const target_bytes: c_int = @as(c_int, audio_chunk_samples * @sizeOf(i16) * 2);
+            if (beep_active) {
+                if (queued < target_bytes) {
+                    queueBeepChunk(audio_stream, &beep_phase, true);
+                }
+            } else if (was_beeping) {
+                _ = c.SDL_ClearAudioStream(audio_stream);
+            }
+            was_beeping = beep_active;
         }
 
         _ = c.SDL_SetRenderDrawColor(renderer, 0x07, 0x0A, 0x10, 0xFF);
