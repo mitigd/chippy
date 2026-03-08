@@ -9,6 +9,11 @@ const display_w = 64;
 const display_h = 32;
 const scale = 2.0;
 
+// CHIP-8 quirk toggles for compatibility/accuracy tuning.
+// These defaults match original CHIP-8 behavior.
+const quirk_shift_uses_vy = true; // 8xy6/8xyE read from Vy, store result in Vx
+const quirk_loadstore_inc_i = true; // Fx55/Fx65 increment I by x+1
+
 const font_start: u16 = 0x50;
 const rom_start: u16 = 0x200;
 const rom_capacity: usize = 4096 - @as(usize, rom_start);
@@ -191,16 +196,18 @@ const Chip8 = struct {
                     self.v[x] -%= self.v[y];
                 },
                 0x6 => {
-                    self.v[0xF] = self.v[x] & 0x1;
-                    self.v[x] >>= 1;
+                    const src = if (quirk_shift_uses_vy) self.v[y] else self.v[x];
+                    self.v[0xF] = src & 0x1;
+                    self.v[x] = src >> 1;
                 },
                 0x7 => {
                     self.v[0xF] = if (self.v[y] >= self.v[x]) 1 else 0;
                     self.v[x] = self.v[y] -% self.v[x];
                 },
                 0xE => {
-                    self.v[0xF] = (self.v[x] >> 7) & 0x1;
-                    self.v[x] <<= 1;
+                    const src = if (quirk_shift_uses_vy) self.v[y] else self.v[x];
+                    self.v[0xF] = (src >> 7) & 0x1;
+                    self.v[x] = src << 1;
                 },
                 else => {},
             },
@@ -264,12 +271,14 @@ const Chip8 = struct {
                     while (r <= x) : (r += 1) {
                         self.memory[self.i + r] = self.v[r];
                     }
+                    if (quirk_loadstore_inc_i) self.i +%= @as(u16, @intCast(x + 1));
                 },
                 0x65 => {
                     var r: usize = 0;
                     while (r <= x) : (r += 1) {
                         self.v[r] = self.memory[self.i + r];
                     }
+                    if (quirk_loadstore_inc_i) self.i +%= @as(u16, @intCast(x + 1));
                 },
                 else => {},
             },
