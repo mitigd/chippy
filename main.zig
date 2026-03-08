@@ -608,7 +608,7 @@ pub fn main() !void {
         const ui_w: c_int = @max(@as(c_int, 320), @as(c_int, @intFromFloat(@as(f32, @floatFromInt(out_w)) / scale)));
         const ui_h: c_int = @max(@as(c_int, 240), @as(c_int, @intFromFloat(@as(f32, @floatFromInt(out_h)) / scale)));
 
-        const margin: c_int = 10;
+        const margin: c_int = 15;
         const top: c_int = 22;
         const avail_w: c_int = ui_w - (margin * 3);
         // Right side: Registers and Stack/Keys side-by-side (takes most space)
@@ -639,7 +639,7 @@ pub fn main() !void {
         const lower_right_h: c_int = avail_h - control_h - margin;
 
         // Disasm at bottom (full width of right column)
-        var disasm_h: c_int = 120;
+        var disasm_h: c_int = 80;
         if (disasm_h > lower_right_h - 150) disasm_h = lower_right_h - 150;
         if (disasm_h < 80) disasm_h = 80;
 
