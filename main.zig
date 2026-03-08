@@ -11,6 +11,7 @@ const scale = 2.0;
 
 const font_start: u16 = 0x50;
 const rom_start: u16 = 0x200;
+const rom_capacity: usize = 4096 - @as(usize, rom_start);
 
 const key_map = [_]c.SDL_Scancode{
     c.SDL_SCANCODE_X, // 0
@@ -457,6 +458,8 @@ pub fn main() !void {
     var timer_accum: f64 = 0;
     var status_text: [256]u8 = [_]u8{0} ** 256;
     var status_len: usize = 0;
+    var loaded_rom: [rom_capacity]u8 = undefined;
+    var loaded_rom_len: usize = 0;
 
     var history = CpuHistory{};
 
@@ -550,9 +553,22 @@ pub fn main() !void {
         if (c.ngui_begin_main_menu(ngui, "FILE") != 0) {
             if (c.ngui_main_menu_item(ngui, "OPEN ROM") != 0) open_browser = true;
             if (c.ngui_main_menu_item(ngui, "RESET") != 0 and rom_loaded) {
-                emu.reset();
+                emu.loadRom(loaded_rom[0..loaded_rom_len]) catch |err| {
+                    status_len = blk: {
+                        const s = std.fmt.bufPrint(&status_text, "Reset failed: {s}", .{@errorName(err)}) catch break :blk 0;
+                        break :blk s.len;
+                    };
+                    rom_loaded = false;
+                    c.ngui_end_main_menu(ngui);
+                    c.ngui_end_main_menu_bar(ngui);
+                    c.ngui_end_frame(ngui);
+                    _ = c.SDL_RenderPresent(renderer);
+                    continue;
+                };
+                history = CpuHistory{};
+                paused = false;
                 status_len = blk: {
-                    const s = std.fmt.bufPrint(&status_text, "Reset emulator state", .{}) catch break :blk 0;
+                    const s = std.fmt.bufPrint(&status_text, "Reset ROM", .{}) catch break :blk 0;
                     break :blk s.len;
                 };
             }
@@ -792,6 +808,7 @@ pub fn main() !void {
                     break :blk s.len;
                 };
                 rom_loaded = false;
+                loaded_rom_len = 0;
                 c.ngui_end_frame(ngui);
                 _ = c.SDL_RenderPresent(renderer);
                 continue;
@@ -804,10 +821,13 @@ pub fn main() !void {
                     break :blk s.len;
                 };
                 rom_loaded = false;
+                loaded_rom_len = 0;
                 c.ngui_end_frame(ngui);
                 _ = c.SDL_RenderPresent(renderer);
                 continue;
             };
+            @memcpy(loaded_rom[0..file.len], file);
+            loaded_rom_len = file.len;
             rom_loaded = true;
             paused = false;
             history = CpuHistory{};
