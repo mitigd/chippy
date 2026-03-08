@@ -657,7 +657,7 @@ pub fn main() !void {
         var panels: [7]DrawPanel = .{ .display, .graph, .control, .registers, .stack, .keys, .disasm };
         var panel_z: [7]c_int = .{
             c.ngui_get_window_z(ngui, "CHIP-8 DISPLAY"),
-            c.ngui_get_window_z(ngui, "KADE TIMER GRAPHS"),
+            c.ngui_get_window_z(ngui, "DT/ST TIMERS"),
             c.ngui_get_window_z(ngui, "CONTROL"),
             c.ngui_get_window_z(ngui, "REGISTERS"),
             c.ngui_get_window_z(ngui, "STACK"),
@@ -697,7 +697,7 @@ pub fn main() !void {
                     var gy: c_int = 0;
                     var gw: c_int = 0;
                     var gh: c_int = 0;
-                    if (c.ngui_begin_render_window(ngui, "KADE TIMER GRAPHS", margin, top + display_win_h + margin, left_w, graph_win_h, 0, &gx, &gy, &gw, &gh) != 0) {
+                    if (c.ngui_begin_render_window(ngui, "DT/ST TIMERS", margin, top + display_win_h + margin, left_w, graph_win_h, 0, &gx, &gy, &gw, &gh) != 0) {
                         renderHistoryGraph(renderer, &history, gx, gy, gw, gh);
                         c.ngui_end_window(ngui);
                     }
