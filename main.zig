@@ -680,48 +680,52 @@ pub fn main() !void {
                 .control => {
                     if (c.ngui_begin_window(ngui, "CONTROL", right_x, top, right_w, control_h) != 0) {
                         var running_toggle = !paused;
-                        if (c.ngui_checkbox(ngui, "Running", &running_toggle, 8, 8) != 0) paused = !running_toggle;
+                        if (c.ngui_checkbox(ngui, "Running", &running_toggle, 8, 0) != 0) paused = !running_toggle;
 
-                        if (c.ngui_button(ngui, "Step", 8, 6, 70, 16) != 0) {
+                        if (c.ngui_button(ngui, "Step", 8, 2, 70, 16) != 0) {
                             paused = true;
                             step_once = true;
                         }
-                        if (c.ngui_button(ngui, "Step x10", 86, 6, 70, 16) != 0) {
+                        if (c.ngui_button(ngui, "Step x10", 86, 2, 70, 16) != 0) {
                             paused = true;
                             step_10 = true;
                         }
-                        c.ngui_separator(ngui, 8, 6, 50);
 
-                        _ = c.ngui_slider(ngui, "Cycles/frame", &cycles_per_frame, 1, 80, 8, 10, -16);
+                        c.ngui_spacer(ngui, 20);
+
+                        c.ngui_label(ngui, "Cycles/frame", 8, 2);
+                        _ = c.ngui_slider(ngui, null, &cycles_per_frame, 1, 80, 8, 2, -16);
 
                         var line: [96]u8 = undefined;
                         const st = std.fmt.bufPrintZ(&line, "PC={X:0>4} I={X:0>4} SP={d}", .{ emu.pc, emu.i, emu.sp }) catch "state";
-                        c.ngui_label(ngui, st.ptr, 8, 6);
+                        c.ngui_label(ngui, st.ptr, 8, 2);
 
                         var opbuf: [96]u8 = undefined;
                         var disbuf: [96]u8 = undefined;
                         const op = std.fmt.bufPrintZ(&opbuf, "OP={X:0>4}", .{emu.last_opcode}) catch "op";
-                        c.ngui_label(ngui, op.ptr, 8, 4);
+                        c.ngui_label(ngui, op.ptr, 8, 2);
+
                         const dis = decodeOpcode(emu.last_opcode, disbuf[0..]);
                         var disz: [100]u8 = undefined;
                         const dis_line = std.fmt.bufPrintZ(&disz, "{s}", .{dis}) catch "decode";
-                        c.ngui_label(ngui, dis_line.ptr, 8, 4);
+                        c.ngui_label(ngui, dis_line.ptr, 8, 2);
 
                         var timer_buf: [96]u8 = undefined;
                         const t = std.fmt.bufPrintZ(&timer_buf, "DT={d} ST={d}", .{ emu.delay_timer, emu.sound_timer }) catch "timers";
-                        c.ngui_label(ngui, t.ptr, 8, 4);
+                        c.ngui_label(ngui, t.ptr, 8, 2);
 
                         if (status_len > 0) {
                             var status_z: [260]u8 = undefined;
                             const shown = elideTail(status_text[0..status_len], 46);
                             const s = std.fmt.bufPrintZ(&status_z, "Status: {s}", .{shown}) catch "status";
-                            c.ngui_separator(ngui, 8, 6, 0);
-                            c.ngui_label(ngui, s.ptr, 8, 4);
+                            c.ngui_separator(ngui, 8, 4, 0);
+                            c.ngui_label(ngui, s.ptr, 8, 2);
                         }
 
                         c.ngui_end_window(ngui);
                     }
                 },
+
                 .registers => {
                     if (c.ngui_begin_window(ngui, "REGISTERS", right_x, top + control_h + margin, reg_w, mid_h) != 0) {
                         var i: usize = 0;
