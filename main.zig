@@ -586,12 +586,14 @@ pub fn main() !void {
         const margin: c_int = 10;
         const top: c_int = 36;
         const avail_w: c_int = ui_w - (margin * 3);
-        var left_w: c_int = @divTrunc(avail_w * 3, 5);
+        // Right side: Registers and Stack/Keys side-by-side (takes most space)
+        // Left side: Display on top, small Graph below
+        var left_w: c_int = @divTrunc(avail_w * 4, 10);
         if (left_w < 120) left_w = 120;
-        if (left_w > avail_w - 160) left_w = avail_w - 160;
+        if (left_w > avail_w - 300) left_w = avail_w - 300;
         var right_w: c_int = avail_w - left_w;
-        if (right_w < 160) {
-            right_w = 160;
+        if (right_w < 300) {
+            right_w = 300;
             left_w = avail_w - right_w;
             if (left_w < 120) {
                 left_w = 120;
@@ -601,48 +603,40 @@ pub fn main() !void {
         const right_x: c_int = margin * 2 + left_w;
         const avail_h: c_int = ui_h - top - margin;
 
-        var display_win_h: c_int = @divTrunc(avail_h * 3, 5);
-        if (display_win_h < 220) display_win_h = 220;
-        if (display_win_h > avail_h - 180) display_win_h = avail_h - 180;
-        if (display_win_h < 120) display_win_h = 120;
-
-        var graph_win_h: c_int = avail_h - display_win_h - margin;
-        if (graph_win_h < 120) graph_win_h = 120;
-
-        var control_h: c_int = @divTrunc(avail_h, 3);
-        if (control_h < 120) control_h = 120;
-        if (control_h > 220) control_h = 220;
-
-        var lower_right_h: c_int = avail_h - control_h - margin;
-        if (lower_right_h < 220) {
-            lower_right_h = 220;
-            control_h = avail_h - margin - lower_right_h;
-            if (control_h < 100) control_h = 100;
-            lower_right_h = avail_h - control_h - margin;
+        var graph_win_h: c_int = 80; // Small fixed height
+        var display_win_h: c_int = avail_h - graph_win_h - margin;
+        if (display_win_h < 120) {
+            display_win_h = 120;
+            graph_win_h = avail_h - display_win_h - margin;
         }
 
-        var registers_h: c_int = @divTrunc(lower_right_h * 3, 5);
-        if (registers_h < 120) registers_h = 120;
-        if (registers_h > lower_right_h - 100) registers_h = lower_right_h - 100;
-        var bottom_h: c_int = lower_right_h - registers_h - margin;
-        if (bottom_h < 100) {
-            bottom_h = 100;
-            registers_h = lower_right_h - bottom_h - margin;
-            if (registers_h < 100) registers_h = 100;
-        }
+        const control_h: c_int = 130; // Compact fixed control area
+        const lower_right_h: c_int = avail_h - control_h - margin;
+
+        // Disasm at bottom (full width of right column)
+        var disasm_h: c_int = 120;
+        if (disasm_h > lower_right_h - 150) disasm_h = lower_right_h - 150;
+        if (disasm_h < 80) disasm_h = 80;
+
+        // Middle section (Registers | Stack | Keys side-by-side)
+        var mid_h: c_int = lower_right_h - disasm_h - margin;
+        if (mid_h < 150) mid_h = 150;
 
         const split_gap: c_int = 8;
-        const stack_w: c_int = @divTrunc(right_w - split_gap, 2);
-        const disasm_w: c_int = right_w - stack_w - split_gap;
+        const col_w: c_int = @divTrunc(right_w - split_gap * 2, 3);
+        const reg_w: c_int = col_w;
+        const stack_w: c_int = col_w;
+        const keys_w: c_int = right_w - reg_w - stack_w - split_gap * 2;
 
-        const DrawPanel = enum { display, graph, control, registers, stack, disasm };
-        var panels: [6]DrawPanel = .{ .display, .graph, .control, .registers, .stack, .disasm };
-        var panel_z: [6]c_int = .{
+        const DrawPanel = enum { display, graph, control, registers, stack, keys, disasm };
+        var panels: [7]DrawPanel = .{ .display, .graph, .control, .registers, .stack, .keys, .disasm };
+        var panel_z: [7]c_int = .{
             c.ngui_get_window_z(ngui, "CHIP-8 DISPLAY"),
             c.ngui_get_window_z(ngui, "KADE TIMER GRAPHS"),
             c.ngui_get_window_z(ngui, "CONTROL"),
             c.ngui_get_window_z(ngui, "REGISTERS"),
-            c.ngui_get_window_z(ngui, "STACK + KEYS"),
+            c.ngui_get_window_z(ngui, "STACK"),
+            c.ngui_get_window_z(ngui, "KEYS"),
             c.ngui_get_window_z(ngui, "DISASM (PC WINDOW)"),
         };
 
@@ -729,7 +723,7 @@ pub fn main() !void {
                     }
                 },
                 .registers => {
-                    if (c.ngui_begin_window(ngui, "REGISTERS", right_x, top + control_h + margin, right_w, registers_h) != 0) {
+                    if (c.ngui_begin_window(ngui, "REGISTERS", right_x, top + control_h + margin, reg_w, mid_h) != 0) {
                         var i: usize = 0;
                         while (i < 16) : (i += 1) {
                             var line: [64]u8 = undefined;
@@ -740,8 +734,7 @@ pub fn main() !void {
                     }
                 },
                 .stack => {
-                    if (c.ngui_begin_window(ngui, "STACK + KEYS", right_x, top + control_h + margin + registers_h + margin, stack_w, bottom_h) != 0) {
-                        c.ngui_label(ngui, "Stack", 8, 4);
+                    if (c.ngui_begin_window(ngui, "STACK", right_x + reg_w + split_gap, top + control_h + margin, stack_w, mid_h) != 0) {
                         var si: usize = 0;
                         while (si < emu.stack.len) : (si += 1) {
                             var line: [64]u8 = undefined;
@@ -749,9 +742,11 @@ pub fn main() !void {
                             const txt = std.fmt.bufPrintZ(&line, "{c} {d: >2}: {X:0>4}", .{ marker, si, emu.stack[si] }) catch "stack";
                             c.ngui_label(ngui, txt.ptr, 8, 2);
                         }
-                        c.ngui_separator(ngui, 8, 4, 0);
-                        c.ngui_label(ngui, "Keypad", 8, 4);
-
+                        c.ngui_end_window(ngui);
+                    }
+                },
+                .keys => {
+                    if (c.ngui_begin_window(ngui, "KEYS", right_x + reg_w + split_gap + stack_w + split_gap, top + control_h + margin, keys_w, mid_h) != 0) {
                         var k: usize = 0;
                         while (k < 16) : (k += 1) {
                             var key_line: [48]u8 = undefined;
@@ -762,7 +757,7 @@ pub fn main() !void {
                     }
                 },
                 .disasm => {
-                    if (c.ngui_begin_window(ngui, "DISASM (PC WINDOW)", right_x + stack_w + split_gap, top + control_h + margin + registers_h + margin, disasm_w, bottom_h) != 0) {
+                    if (c.ngui_begin_window(ngui, "DISASM (PC WINDOW)", right_x, top + control_h + margin + mid_h + margin, right_w, disasm_h) != 0) {
                         var row: usize = 0;
                         while (row < 14) : (row += 1) {
                             const addr = emu.pc + @as(u16, @intCast(row * 2));
