@@ -198,27 +198,37 @@ const Chip8 = struct {
                     self.v[0xF] = 0;
                 },
                 0x4 => {
-                    const sum = @as(u16, self.v[x]) + @as(u16, self.v[y]);
-                    self.v[0xF] = if (sum > 0xFF) 1 else 0;
+                    const vx = self.v[x];
+                    const vy = self.v[y];
+                    const sum = @as(u16, vx) + @as(u16, vy);
                     self.v[x] = @as(u8, @truncate(sum));
+                    self.v[0xF] = if (sum > 0xFF) 1 else 0;
                 },
                 0x5 => {
-                    self.v[0xF] = if (self.v[x] >= self.v[y]) 1 else 0;
-                    self.v[x] -%= self.v[y];
+                    const vx = self.v[x];
+                    const vy = self.v[y];
+                    self.v[x] = vx -% vy;
+                    self.v[0xF] = if (vx >= vy) 1 else 0;
                 },
                 0x6 => {
-                    const src = if (quirk_shift_uses_vy) self.v[y] else self.v[x];
-                    self.v[0xF] = src & 0x1;
+                    const vx = self.v[x];
+                    const vy = self.v[y];
+                    const src = if (quirk_shift_uses_vy) vy else vx;
                     self.v[x] = src >> 1;
+                    self.v[0xF] = src & 0x1;
                 },
                 0x7 => {
-                    self.v[0xF] = if (self.v[y] >= self.v[x]) 1 else 0;
-                    self.v[x] = self.v[y] -% self.v[x];
+                    const vx = self.v[x];
+                    const vy = self.v[y];
+                    self.v[x] = vy -% vx;
+                    self.v[0xF] = if (vy >= vx) 1 else 0;
                 },
                 0xE => {
-                    const src = if (quirk_shift_uses_vy) self.v[y] else self.v[x];
-                    self.v[0xF] = (src >> 7) & 0x1;
+                    const vx = self.v[x];
+                    const vy = self.v[y];
+                    const src = if (quirk_shift_uses_vy) vy else vx;
                     self.v[x] = src << 1;
+                    self.v[0xF] = (src >> 7) & 0x1;
                 },
                 else => {},
             },
